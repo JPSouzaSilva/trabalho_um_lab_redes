@@ -35,7 +35,6 @@ public class TCPServer {
         in = new BufferedReader(new InputStreamReader(client.getInputStream()));
         out = new PrintWriter(client.getOutputStream(), true);
 
-        out.println("Digite seu username: ");
         username = in.readLine();
         synchronized (users) {
           users.put(username, client);
@@ -43,11 +42,13 @@ public class TCPServer {
         out.println("Registrado como: " + username);
         System.out.println(username + " conectado.");
 
+        out.println();
+        out.println("Bem vindo ao servidor TCP");
+        out.println("Para ver todos os comandos do servidor, digite: /HELP");
+
         String clientMessage;
 
-        boolean haveMessage = (clientMessage = in.readLine()) != null;
-
-        while (haveMessage) {
+        while ((clientMessage = in.readLine()) != null) {
           processClientMessage(clientMessage);
         }
       } catch (IOException e) {
@@ -60,16 +61,19 @@ public class TCPServer {
     private void processClientMessage(String message) {
       boolean messageComand = message.startsWith("/MSG");
       boolean fileCommand = message.startsWith("/FILE");
-      
+      boolean helpCommand = message.equals("/HELP");
+      boolean listUsersCommand = message.equals("/LIST");
+
       if (messageComand) {
         String[] parts = message.split(" ", 3);
         if (parts.length == 3) {
           String userToSend = parts[1];
           String msg = parts[2];
           sendMessage(userToSend, msg);
+          out.println("Mensagem enviada com sucesso");
         }
       }
-      
+
       if (fileCommand) {
         String[] parts = message.split(" ", 3);
         if (parts.length == 3) {
@@ -77,6 +81,14 @@ public class TCPServer {
           String fileName = parts[2];
           sendFile(userToSend, fileName);
         }
+      }
+
+      if (helpCommand) {
+        allCommands();
+      }
+
+      if (listUsersCommand) {
+        listAllUsers();
       }
     }
 
@@ -104,20 +116,68 @@ public class TCPServer {
 
       if (userIsOnline) {
         try {
-          PrintWriter targetOut = new PrintWriter(target.getOutputStream(), true);
-          targetOut.println(username + " enviou um arquivo: " + fileName);
+          File originalFile = new File(fileName);
 
-          BufferedReader fileReader = new BufferedReader(new FileReader(fileName));
-          String line;
-          while ((line = fileReader.readLine()) != null) {
-            targetOut.println(line);
+          boolean originalFileExist = originalFile.exists();
+
+          if (!originalFileExist) {
+            out.println("O arquivo " + fileName + " não foi encontrado.");
+            return;
           }
-          fileReader.close();
+
+          String newFileName = System.currentTimeMillis() + "_" + originalFile.getName();
+          File newFile = new File(newFileName);
+
+          try (BufferedReader fileReader = new BufferedReader(new FileReader(originalFile));
+              BufferedWriter fileWriter = new BufferedWriter(new FileWriter(newFile))) {
+            String line;
+            while ((line = fileReader.readLine()) != null) {
+              fileWriter.write(line);
+              fileWriter.newLine();
+            }
+          }
+
+          try (BufferedInputStream fileInput = new BufferedInputStream(new FileInputStream(newFile));
+              BufferedOutputStream targetOut = new BufferedOutputStream(target.getOutputStream())) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = fileInput.read(buffer)) != -1) {
+              targetOut.write(buffer, 0, bytesRead);
+            }
+            targetOut.flush();
+          }
+
+          out.println("Arquivo " + originalFile.getName() + " enviado para " + userToSend + ".");
+
         } catch (IOException e) {
           e.printStackTrace();
         }
       } else {
         out.println("O usuário " + userToSend + " não está online.");
+      }
+    }
+
+    private void allCommands() {
+      out.println();
+      out.println("Comandos disponíveis no servidor:");
+      out.println("/HELP - Listar todos os comandos.");
+      out.println("/LIST - Listar todos os usuários conectados.");
+      out.println("/MSG <username> <mensagem> - Enviar mensagem a um usuário.");
+      out.println("/FILE <username> <caminho do arquivo> - Enviar arquivo a um usuário.");
+    }
+
+    private void listAllUsers() {
+      out.println();
+      synchronized (users) {
+        boolean haveUsers = !users.isEmpty();
+        if (haveUsers) {
+          out.println("Usuários conectados:");
+          for (String user : users.keySet()) {
+            out.println("- " + user);
+          }
+        } else {
+          out.println("Não tem usuários conectados.");
+        }
       }
     }
 

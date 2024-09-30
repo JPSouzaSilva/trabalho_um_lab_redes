@@ -10,8 +10,8 @@ public class TCPClient {
         BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
         BufferedReader console = new BufferedReader(new InputStreamReader(System.in))) {
-
-      System.out.print("Digite seu username: ");
+      
+      System.out.print("Para entrar no servidor TCP, digite seu username para começar: ");
       String username = console.readLine();
       out.println(username);
 
