@@ -22,7 +22,12 @@ public class UDPClient {
           try {
             socket.receive(packet);
             String serverMessage = new String(packet.getData(), 0, packet.getLength());
-            System.out.println(serverMessage);
+
+            if (serverMessage.startsWith("FILE")) {
+              receiveFile(socket, packet);
+            } else {
+              System.out.println(serverMessage);
+            }
           } catch (IOException e) {
             e.printStackTrace();
           }
@@ -42,5 +47,33 @@ public class UDPClient {
     byte[] buffer = message.getBytes();
     DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverAddress, SERVER_PORT);
     socket.send(packet);
+  }
+
+  private static void receiveFile(DatagramSocket socket, DatagramPacket packet) throws IOException {
+    String[] fileInfo = new String(packet.getData(), 0, packet.getLength()).split(" ");
+    String fileName = fileInfo[1];
+
+    System.out.println("Recebendo arquivo: " + fileName);
+
+    File receivedFile = new File(System.currentTimeMillis() + "_" + fileName);
+    try (FileOutputStream fileOutputStream = new FileOutputStream(receivedFile)) {
+      byte[] buffer = new byte[1024];
+      int bytesRead;
+
+      while (true) {
+        DatagramPacket filePacket = new DatagramPacket(buffer, buffer.length);
+        socket.receive(filePacket);
+        bytesRead = filePacket.getLength();
+
+        if (bytesRead < 1024) {
+          fileOutputStream.write(buffer, 0, bytesRead);
+          break;
+        }
+
+        fileOutputStream.write(buffer, 0, bytesRead);
+      }
+    }
+
+    System.out.println("Arquivo " + fileName + " recebido com sucesso.");
   }
 }

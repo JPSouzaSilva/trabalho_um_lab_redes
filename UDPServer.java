@@ -36,29 +36,29 @@ public class UDPServer {
 
     public void run() {
       try {
-          String message = new String(packet.getData(), 0, packet.getLength());
+        String message = new String(packet.getData(), 0, packet.getLength());
 
-          if (users.containsValue(clientAddress)) {
-              for (Map.Entry<String, InetSocketAddress> entry : users.entrySet()) {
-                  if (entry.getValue().equals(clientAddress)) {
-                      username = entry.getKey();
-                  }
-              }
-              processClientMessage(message);
-          } else {
-              username = message;
-              synchronized (users) {
-                  users.put(username, clientAddress);
-              }
-              sendMessage("Registrado como: " + username, clientAddress);
-              sendMessage("Bem vindo ao servidor UDP", clientAddress);
-              sendMessage("Para ver todos os comandos do servidor, digite: /HELP", clientAddress);
-              System.out.println(username + " conectado.");
+        if (users.containsValue(clientAddress)) {
+          for (Map.Entry<String, InetSocketAddress> entry : users.entrySet()) {
+            if (entry.getValue().equals(clientAddress)) {
+              username = entry.getKey();
+            }
           }
+          processClientMessage(message);
+        } else {
+          username = message;
+          synchronized (users) {
+            users.put(username, clientAddress);
+          }
+          sendMessage("Registrado como: " + username, clientAddress);
+          sendMessage("Bem vindo ao servidor UDP", clientAddress);
+          sendMessage("Para ver todos os comandos do servidor, digite: /HELP", clientAddress);
+          System.out.println(username + " conectado.");
+        }
       } catch (IOException e) {
-          e.printStackTrace();
+        e.printStackTrace();
       }
-  }
+    }
 
     private void processClientMessage(String message) throws IOException {
       boolean messageCommand = message.startsWith("/MSG");
@@ -85,7 +85,7 @@ public class UDPServer {
       }
 
       if (helpCommand) {
-        sendMessage("Comandos disponíveis: /HELP, /LIST, /MSG <username> <mensagem>, /FILE <username> <arquivo>",clientAddress);
+        allCommands();
       }
 
       if (listUsersCommand) {
@@ -109,35 +109,42 @@ public class UDPServer {
     private void sendFile(String userToSend, String fileName) throws IOException {
       InetSocketAddress target = users.get(userToSend);
 
-      if (target != null) {
-          sendMessage("Preparando para receber o arquivo: " + fileName, clientAddress);
+      boolean userIsOnline = target != null;
 
-          File receivedFile = new File(System.currentTimeMillis() + fileName);
-          try (FileOutputStream fos = new FileOutputStream(receivedFile)) {
-              byte[] buffer = new byte[1024];
-              DatagramPacket filePacket = new DatagramPacket(buffer, buffer.length);
+      if (userIsOnline) {
+        File originalFile = new File(fileName);
 
-              while (true) {
-                  socket.receive(filePacket);
-                  int bytesRead = filePacket.getLength();
+        if (!originalFile.exists()) {
+          sendMessage("O arquivo " + fileName + " não foi encontrado.", clientAddress);
+          return;
+        }
 
-                  boolean isLastPackage = bytesRead < buffer.length;
-                  if (isLastPackage) {
-                      fos.write(filePacket.getData(), 0, bytesRead);
-                      break; 
-                  }
-                  fos.write(filePacket.getData(), 0, bytesRead);
-              }
+        sendMessage("FILE " + originalFile.getName(), target);
 
-              sendMessage("Arquivo " + fileName + " recebido com sucesso de " + username, target);
-          } catch (IOException e) {
-              sendMessage("Erro ao receber o arquivo " + fileName, clientAddress);
-              e.printStackTrace();
+        try (FileInputStream fileInputStream = new FileInputStream(originalFile)) {
+          byte[] fileBuffer = new byte[1024];
+          int bytesRead;
+          while ((bytesRead = fileInputStream.read(fileBuffer)) != -1) {
+            DatagramPacket filePacket = new DatagramPacket(fileBuffer, bytesRead, target.getAddress(),target.getPort());
+            socket.send(filePacket);
           }
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+
+        sendMessage("Arquivo " + fileName + " enviado com sucesso para " + userToSend, clientAddress);
       } else {
-          sendMessage("O usuário " + userToSend + " não está online.", clientAddress);
+        sendMessage("O usuário " + userToSend + " não está online.", clientAddress);
       }
-  }
+    }
+
+    private void allCommands() throws IOException {
+      sendMessage("Comandos disponíveis no servidor:", clientAddress);
+      sendMessage("/HELP - Listar todos os comandos.", clientAddress);
+      sendMessage("/LIST - Listar todos os usuários conectados.", clientAddress);
+      sendMessage("/MSG <username> <mensagem> - Enviar mensagem a um usuário.", clientAddress);
+      sendMessage("/FILE <username> <caminho do arquivo> - Enviar arquivo a um usuário.", clientAddress);
+    }
 
     private void listAllUsers() throws IOException {
       synchronized (users) {
