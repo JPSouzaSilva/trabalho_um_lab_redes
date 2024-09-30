@@ -125,6 +125,9 @@ public class TCPServer {
             return;
           }
 
+          PrintWriter targetOutUser = new PrintWriter(target.getOutputStream(), true);
+          targetOutUser.println(username + " está enviando o arquivo: " + originalFile.getName());
+
           String newFileName = System.currentTimeMillis() + "_" + originalFile.getName();
           File newFile = new File(newFileName);
 
@@ -141,6 +144,7 @@ public class TCPServer {
               BufferedOutputStream targetOut = new BufferedOutputStream(target.getOutputStream())) {
             byte[] buffer = new byte[8192];
             int bytesRead;
+
             while ((bytesRead = fileInput.read(buffer)) != -1) {
               targetOut.write(buffer, 0, bytesRead);
             }
